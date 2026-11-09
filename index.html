@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat Control False-Alarm Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: controls on the left, live result + 100-alert grid on the right; stacks on phones (QR audience). */
+  --bg: #F4F7FB;
+  --surface: #FFFFFF;
+  --ink: #142033;
+  --muted: #5B6B7F;
+  --line: #D5DEEA;
+  --navy: #0B2545;
+  --real: #13837A;
+  --false: #D1495B;
+  --gold: #F2B51D;
+  --display: "Archivo", "Arial", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1626; --surface: #13223A; --ink: #E8EEF6; --muted: #9FB0C6; --line: #26385A;
+    --navy: #8FB3DE; --real: #3CB8A8; --false: #F07384; --gold: #F2B51D; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B1626; --surface: #13223A; --ink: #E8EEF6; --muted: #9FB0C6; --line: #26385A;
+  --navy: #8FB3DE; --real: #3CB8A8; --false: #F07384; --gold: #F2B51D; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.45; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 28px 20px 40px; display: grid; gap: 22px; }
+header h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.1; margin: 0 0 8px; color: var(--navy); text-wrap: balance; }
+header p { margin: 0; max-width: 65ch; color: var(--muted); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 22px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; align-content: start; }
+.panel h2 { font-family: var(--display); font-size: 1.05rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.presets button { font: 600 .95rem var(--body); border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.presets button[aria-pressed="true"] { border-color: var(--navy); background: var(--navy); color: var(--surface); }
+.field { display: grid; gap: 6px; }
+.field .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.field label { font-weight: 700; }
+.field output { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--navy); white-space: nowrap; }
+.field small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--navy); height: 28px; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.headline { display: grid; gap: 4px; }
+.big { font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 8vw, 3.6rem); line-height: 1; color: var(--false); font-variant-numeric: tabular-nums; }
+.headline p { margin: 0; font-size: 1.05rem; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 420px) { .tiles { grid-template-columns: 1fr; } }
+.tile { border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.tile b { display: block; font-family: var(--display); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.tile span { font-size: .9rem; color: var(--muted); }
+.tile.real b { color: var(--real); } .tile.false b { color: var(--false); }
+.waffle-wrap { display: grid; gap: 8px; }
+.waffle { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; max-width: 420px; }
+.waffle i { aspect-ratio: 1; border-radius: 3px; background: var(--false); }
+.waffle i.r { background: var(--real); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .92rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--false); }
+.legend .lr::before { background: var(--real); }
+.real-data { border-left: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; display: grid; gap: 6px; }
+.real-data b { color: var(--navy); }
+footer { font-size: .88rem; color: var(--muted); max-width: 80ch; }
+footer a { color: var(--navy); }
+@media (prefers-reduced-motion: no-preference) { .waffle i { transition: background-color .25s; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>How many innocent people would be flagged?</h1>
+    <p>Mass scanning runs into the base-rate problem: when almost every message is lawful, even a very accurate detector produces mostly false alarms. Move the sliders to see it.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-in">
+      <h2 id="h-in">Assumptions</h2>
+      <div class="presets" role="group" aria-label="Detector presets">
+        <button type="button" id="p-hash" aria-pressed="false">Hash matching (known images)</button>
+        <button type="button" id="p-ai" aria-pressed="true">AI classifier (new images, grooming)</button>
+      </div>
+      <div class="field">
+        <div class="top"><label for="msgs">Messages scanned per day</label><output id="o-msgs" for="msgs"></output></div>
+        <input type="range" id="msgs" min="6" max="10" step="0.25" value="9">
+        <small>Roughly: one country's chats (millions) up to the whole EU (billions).</small>
+      </div>
+      <div class="field">
+        <div class="top"><label for="prev">Messages that really contain abuse</label><output id="o-prev" for="prev"></output></div>
+        <input type="range" id="prev" min="3" max="7" step="0.25" value="5">
+        <small>Prevalence: abusive content is extremely rare among all messages.</small>
+      </div>
+      <div class="field">
+        <div class="top"><label for="rec">Abuse correctly detected (recall)</label><output id="o-rec" for="rec"></output></div>
+        <input type="range" id="rec" min="50" max="99" step="1" value="90">
+      </div>
+      <div class="field">
+        <div class="top"><label for="fpr">Lawful messages wrongly flagged (false-positive rate)</label><output id="o-fpr" for="fpr"></output></div>
+        <input type="range" id="fpr" min="-5" max="0.7" step="0.1" value="-1">
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-out" aria-live="polite">
+      <h2 id="h-out">Result per day</h2>
+      <div class="headline">
+        <div class="big" id="r-false">0</div>
+        <p>lawful messages flagged as suspicious, every day</p>
+      </div>
+      <div class="tiles">
+        <div class="tile real"><b id="r-true">0</b><span>real abuse found</span></div>
+        <div class="tile false"><b id="r-ratio">0</b><span>false alarms per real case</span></div>
+        <div class="tile"><b id="r-prec">0%</b><span>of alerts are real (precision)</span></div>
+      </div>
+      <div class="waffle-wrap">
+        <strong>Out of every 100 alerts sent for review:</strong>
+        <div class="waffle" id="waffle" role="img" aria-label="Grid of 100 alerts"></div>
+        <div class="legend"><span class="lr" id="l-real">real abuse</span><span id="l-false">innocent people</span></div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="real-data">
+    <b>Real-world check: Ireland, 2020</b>
+    <span>Of 4,192 referrals produced by voluntary scanning and sent to the Irish police, only 852 (about 20%) were abuse material; 471 (about 11%) were confirmed false positives. Source: ICCL / EDRi (2022), An Garda Síochána data.</span>
+  </aside>
+
+  <footer>
+    All rates above are illustrative assumptions: no EU-wide error rates for message scanning are published. Presets are rough orders of magnitude, not measurements of any product.
+    Made for a student debate in Privacy, Security &amp; Ethics in Data Science (Universidade Lusófona, 2026).
+    Official procedure: <a href="https://eur-lex.europa.eu/procedure/EN/2022_155">EUR-Lex, 2022/0155(COD)</a>.
+  </footer>
+</main>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const msgs = $("msgs"), prev = $("prev"), rec = $("rec"), fpr = $("fpr");
+  const fmt = n => {
+    if (n >= 1e9) return (n / 1e9).toLocaleString("en", { maximumFractionDigits: 1 }) + " billion";
+    if (n >= 1e6) return (n / 1e6).toLocaleString("en", { maximumFractionDigits: 1 }) + " million";
+    return Math.round(n).toLocaleString("en");
+  };
+  const pct = p => {
+    if (p >= 1) return p.toLocaleString("en", { maximumFractionDigits: 1 }) + "%";
+    if (p >= 0.01) return p.toLocaleString("en", { maximumFractionDigits: 2 }) + "%";
+    return p.toLocaleString("en", { maximumSignificantDigits: 2 }) + "%";
+  };
+  const waffle = $("waffle");
+  for (let i = 0; i < 100; i++) waffle.appendChild(document.createElement("i"));
+
+  function calc() {
+    const N = Math.pow(10, +msgs.value);
+    const oneIn = Math.pow(10, +prev.value);
+    const recall = +rec.value / 100;
+    const fp = Math.pow(10, +fpr.value) / 100; // slider is log10 of percent
+    const abusive = N / oneIn, lawful = N - abusive;
+    const tp = abusive * recall, fpos = lawful * fp;
+    const precision = tp / (tp + fpos);
+    $("o-msgs").textContent = fmt(N);
+    $("o-prev").textContent = "1 in " + fmt(oneIn);
+    $("o-rec").textContent = rec.value + "%";
+    $("o-fpr").textContent = pct(fp * 100);
+    $("r-false").textContent = fmt(fpos);
+    $("r-true").textContent = fmt(tp);
+    $("r-ratio").textContent = tp > 0 ? (fpos / tp).toLocaleString("en", { maximumFractionDigits: fpos / tp < 10 ? 1 : 0 }) : "–";
+    $("r-prec").textContent = pct(precision * 100);
+    const realCells = Math.round(precision * 100);
+    [...waffle.children].forEach((c, i) => c.classList.toggle("r", i < realCells));
+    waffle.setAttribute("aria-label", realCells + " of 100 alerts are real abuse; " + (100 - realCells) + " are innocent people");
+    $("l-real").textContent = realCells + " real abuse";
+    $("l-false").textContent = (100 - realCells) + " innocent people";
+  }
+  function preset(which) {
+    if (which === "hash") { rec.value = 90; fpr.value = -3; } else { rec.value = 90; fpr.value = -1; }
+    $("p-hash").setAttribute("aria-pressed", which === "hash");
+    $("p-ai").setAttribute("aria-pressed", which === "ai");
+    calc();
+  }
+  $("p-hash").addEventListener("click", () => preset("hash"));
+  $("p-ai").addEventListener("click", () => preset("ai"));
+  [msgs, prev, rec, fpr].forEach(el => el.addEventListener("input", () => {
+    $("p-hash").setAttribute("aria-pressed", "false"); $("p-ai").setAttribute("aria-pressed", "false"); calc();
+  }));
+  calc();
+})();
+</script>
+</body>
+</html>
